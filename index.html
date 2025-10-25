@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sistema ERP 3.3</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="sistemacss.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+</head>
+<body>
+  <header class="navbar">
+    <button onclick="mostrarTela('cadastro')">📋 Cadastro de Clientes</button>
+    <button onclick="mostrarTela('consultas')">📄 Consultar Vendas</button>
+    <button onclick="mostrarTela('estoque')">📦 Estoque</button>
+    <button onclick="mostrarTela('relatorios')">📊 Relatórios</button>
+    <button class="primary" onclick="mostrarFormularioVenda()">🛒 Nova Venda</button>
+  </header>
+
+  <!-- ========== CLIENTES ========== -->
+  <section id="cadastro" class="active">
+    <h2>Cadastro e Consulta de Clientes</h2>
+
+    <div class="toolbar">
+      <div class="input-icon">
+        <input type="text" id="buscaCliente" placeholder="Buscar por nome, telefone..." oninput="onBuscaRapida()" />
+        <span class="icon">🔍</span>
+      </div>
+      <div class="grow"></div>
+      <button onclick="abrirCadastroCliente()">+ Novo Cliente</button>
+      <button class="ghost" onclick="exportarCSV()">Exportar CSV</button>
+      <label class="ghost">Por página:
+        <select id="pageSize" onchange="onChangePageSize()">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="table-wrap">
+      <table id="clientesTabela" class="table">
+        <thead>
+          <tr>
+            <th>ID</th><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Cidade</th><th>Última compra</th><th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="clientesLoading" class="state hidden">Carregando…</div>
+      <div id="clientesEmpty" class="state hidden">Sem resultados.</div>
+    </div>
+
+    <div class="pager">
+      <button class="ghost" onclick="paginaAnterior()">« Anterior</button>
+      <span id="paginacaoInfo">Página 1/1</span>
+      <button class="ghost" onclick="proximaPagina()">Próxima »</button>
+    </div>
+
+    <!-- Modal Cliente -->
+    <div id="cadastroClienteContainer" class="modal">
+      <div class="modal-content">
+        <button class="close" onclick="fecharCadastroCliente()">×</button>
+        <h3 id="tituloModalCliente">Inserir Cliente</h3>
+
+        <input type="hidden" id="clienteId" />
+        <div class="grid2">
+          <input id="nomeInput" placeholder="Nome *" />
+          <input id="telefoneInput" placeholder="Telefone *" />
+        </div>
+        <div class="grid2">
+          <input id="emailInput" placeholder="E-mail" />
+          <input id="cidadeInput" placeholder="Cidade" />
+        </div>
+        <textarea id="observacoesInput" rows="3" placeholder="Observações"></textarea>
+
+        <div class="actions">
+          <button class="ghost" onclick="fecharCadastroCliente()">Cancelar</button>
+          <button onclick="salvarCliente()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VENDAS ========== -->
+  <section id="consultas">
+    <h2>Consulta de Vendas</h2>
+
+    <div class="kpis">
+      <div class="kpi card">
+        <div class="kpi-title">Total do Período</div>
+        <div class="kpi-value" id="totalDia">R$ 0,00</div>
+        <div class="kpi-sub" id="comparativoDia">Sem dados anteriores</div>
+      </div>
+      <div class="kpi card">
+        <div class="kpi-title">Top Vendedor</div>
+        <div class="kpi-value" id="topVendedor">—</div>
+        <div class="kpi-sub" id="totalTopVendedor">Total: R$ 0,00</div>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div>
+        <label>Cliente</label>
+        <div class="input-icon">
+          <input type="text" id="fClienteNome" placeholder="Pesquisar cliente..." oninput="filtrarClienteVendas()" />
+          <span class="icon">🔍</span>
+        </div>
+      </div>
+      <div>
+        <label>Produto</label>
+        <select id="fProduto"></select>
+      </div>
+      <div>
+        <label>Data inicial</label>
+        <input type="date" id="fDataIni" />
+      </div>
+      <div>
+        <label>Data final</label>
+        <input type="date" id="fDataFim" />
+      </div>
+
+      <div class="actions" style="grid-column: 1 / -1;">
+        <button onclick="aplicarFiltrosVendas()">Filtrar</button>
+        <button class="ghost" onclick="limparFiltrosVendas()">Limpar</button>
+        <div class="grow"></div>
+        <button class="ghost" onclick="exportarVendasCSV()">⬇️ Exportar CSV</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="tabelaVendas" class="table">
+        <thead>
+          <tr>
+            <th>ID</th><th>Cliente</th><th>Vendedor</th><th>Data</th><th>Produto</th><th>Qtd</th><th>Preço</th><th>Total</th><th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="vendasLoading" class="state hidden">Carregando…</div>
+      <div id="vendasEmpty" class="state hidden">Sem resultados.</div>
+    </div>
+  </section>
+
+  <!-- ========== ESTOQUE ========== -->
+  <section id="estoque">
+    <h2>Consulta de Estoque</h2>
+    <div class="toolbar">
+      <div class="input-icon">
+        <input id="buscaProduto" placeholder="Buscar produto..." oninput="onBuscaEstoque()" />
+        <span class="icon">🔍</span>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="tabelaEstoque" class="table">
+        <thead>
+          <tr>
+            <th>Nome</th><th>Preço</th><th>Estoque</th><th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="estoqueLoading" class="state hidden">Carregando…</div>
+      <div id="estoqueEmpty" class="state hidden">Sem resultados.</div>
+    </div>
+
+    <!-- Modal Produto -->
+    <div id="editarProdutoContainer" class="modal">
+      <div class="modal-content">
+        <button class="close" onclick="fecharEditorProduto()">×</button>
+        <h3>Editar Produto</h3>
+        <input type="hidden" id="produtoId" />
+        <div class="grid3">
+          <input id="produtoNome" placeholder="Nome" />
+          <input id="produtoPreco" type="number" step="0.01" placeholder="Preço" />
+          <input id="produtoEstoque" type="number" placeholder="Estoque" />
+        </div>
+        <div class="actions">
+          <button class="ghost" onclick="fecharEditorProduto()">Cancelar</button>
+          <button onclick="salvarProdutoEditado()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== NOVA VENDA ========== -->
+  <div id="formVendaContainer" class="modal">
+    <div class="modal-content">
+      <button class="close danger-close" onclick="cancelarVendaModal()">×</button>
+      <h3>Registrar Nova Venda</h3>
+
+      <label>Cliente</label>
+      <select id="clienteVendaSelect"></select>
+
+      <label>Vendedor</label>
+      <select id="vendedorVendaSelect"></select>
+
+      <h4>Produtos</h4>
+      <div id="produtosContainer"></div>
+
+      <div class="actions">
+        <button class="ghost" onclick="adicionarProduto()">+ Adicionar Produto</button>
+        <div class="grow"></div>
+        <button class="ghost" onclick="salvarVenda(true)">💾 Salvar e Nova</button>
+        <button onclick="salvarVenda()">💾 Salvar Venda</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== RELATÓRIOS ========== -->
+  <section id="relatorios">
+    <h2>Relatórios ao Vivo</h2>
+    
+    <div class="kpis">
+      <div class="kpi card">
+        <div class="kpi-title">Produtos Mais Vendidos</div>
+        <div class="kpi-value" id="totalVendasMes">Este Mês</div>
+        <div class="kpi-sub" id="periodoRelatorio">Atualizado em tempo real</div>
+      </div>
+      <div class="kpi card">
+        <div class="kpi-title">Total de Vendas</div>
+        <div class="kpi-value" id="valorTotalMes">R$ 0,00</div>
+        <div class="kpi-sub" id="quantidadeVendas">0 vendas</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="grow"></div>
+      <button onclick="atualizarRelatorios()">🔄 Atualizar</button>
+      <button class="ghost" onclick="exportarRelatorioProdutos()">📊 Exportar CSV</button>
+    </div>
+
+    <div class="table-wrap">
+      <table id="tabelaRelatorios" class="table">
+        <thead>
+          <tr>
+            <th>Posição</th><th>Produto</th><th>Quantidade Vendida</th><th>Valor Total</th><th>% do Total</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="relatoriosLoading" class="state hidden">Carregando relatórios...</div>
+      <div id="relatoriosEmpty" class="state hidden">Sem dados para o período.</div>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="graficoProdutos"></canvas>
+    </div>
+  </section>
+
+  <!-- Toast -->
+  <div id="toaster"></div>
+
+  <script src="sistemajava.js"></script>
+</body>
+</html>
